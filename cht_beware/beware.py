@@ -233,7 +233,7 @@ class BEWARE:
     def read_flow_boundary_points(self):
         
         # Read BEWARE profs file
-        from cht.sfincs.sfincs import FlowBoundaryPoint
+        from cht_sfincs.sfincs import FlowBoundaryPoint
         
         # Loop through points
         for ind in range(len(self.profiles.xf)):
@@ -247,7 +247,7 @@ class BEWARE:
     def read_wave_boundary_points(self):
         
         # Read BEWARE profs file
-        from cht.sfincs.sfincs import FlowBoundaryPoint
+        from cht_sfincs.sfincs import FlowBoundaryPoint
                         
         # Loop through points
         for ind in range(len(self.profiles.xo)):

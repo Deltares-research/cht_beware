@@ -23,7 +23,7 @@ import time
 import sys
 import datetime
 
-import cht.misc.misc_tools
+import cht_utils.misc_tools
 
 class BEWARE:
     
@@ -322,7 +322,7 @@ class BEWARE:
     def read_flow_boundary_points(self):
         
         # Read BEWARE profs file
-        from cht.sfincs.sfincs import FlowBoundaryPoint
+        from cht_sfincs.sfincs import FlowBoundaryPoint
         
         prof_file = os.path.join(self.path, self.input.profsfile)
         # Read the bnd file
@@ -344,7 +344,7 @@ class BEWARE:
     def read_wave_boundary_points(self):
         
         # Read BEWARE profs file
-        from cht.sfincs.sfincs import FlowBoundaryPoint
+        from cht_sfincs.sfincs import FlowBoundaryPoint
 
                 
         prof_file = os.path.join(self.path, self.input.profsfile)
@@ -667,7 +667,7 @@ class BEWARE:
 #             os.mkdir(output_path_runup)
 #             file_name = os.path.join(output_path_runup,
 #                                     "extreme_runup_height.geojson.js")
-#             cht.misc.misc_tools.write_json_js(file_name, feature_collection, "var runup =")
+#             cht_utils.misc_tools.write_json_js(file_name, feature_collection, "var runup =")
             
 #         features = []
             
@@ -694,7 +694,7 @@ class BEWARE:
 #             os.mkdir(output_path_waves)
 #             file_name = os.path.join(output_path_waves,     
 #                                     "extreme_sea_level_and_wave_height.geojson.js")
-#             cht.misc.misc_tools.write_json_js(file_name, feature_collection, "var swl =")
+#             cht_utils.misc_tools.write_json_js(file_name, feature_collection, "var swl =")
 #         # with open(output_path + r"\\" + scenario + '.TWL.geojson.js', 'w') as fl:
 #         #     fl.write('const point_' + scenario + '_TWL = ')
 #         #     dump(feature_collection, fl)
@@ -740,13 +740,13 @@ class BEWARE:
 #                          float_format='%.3f',
 #                          header= False, index_label= 'datetime')        
             
-#             cht.misc.misc_tools.write_csv_js(local_file_path, s, "var csv = `date_time,wl,setup,swash,runup")
+#             cht_utils.misc_tools.write_csv_js(local_file_path, s, "var csv = `date_time,wl,setup,swash,runup")
                              
 #         if features:
 #             feature_collection = FeatureCollection(features)
 #             runup_file = os.path.join(output_path,
 #                                     "twls.geojson.js")
-#             cht.misc.misc_tools.write_json_js(runup_file, feature_collection, "var TWL =")
+#             cht_utils.misc_tools.write_json_js(runup_file, feature_collection, "var TWL =")
             
 
 class BewareInput():
