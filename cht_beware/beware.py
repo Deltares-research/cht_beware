@@ -26,6 +26,20 @@ import datetime
 
 import cht_utils.misc_tools
 
+class Point():        
+    def __init__(self, x, y, name = None, crs=None):        
+        self.x       = x
+        self.y       = y
+        self.crs     = crs
+        self.name    = name
+        self.data    = None
+
+class BoundaryPoint():
+    def __init__(self, x, y, name=None, crs=None, data=None):        
+        self.name                   = name
+        self.geometry               = Point(x, y, crs=crs)
+        self.data                   = data
+
 class BEWARE:
     
     def __init__(self, input_file=None, crs=None):               
@@ -233,12 +247,12 @@ class BEWARE:
     def read_flow_boundary_points(self):
         
         # Read BEWARE profs file
-        from cht_sfincs.sfincs import FlowBoundaryPoint
+        # from cht_sfincs.sfincs import FlowBoundaryPoint
         
         # Loop through points
         for ind in range(len(self.profiles.xf)):
             name = self.profiles.profid[ind]
-            point = FlowBoundaryPoint(self.profiles.xf[ind],
+            point = BoundaryPoint(self.profiles.xf[ind],
                                       self.profiles.yf[ind],
                                        name=r'transect_' + str(int(name)))
                                       # name= str(int(name))) 
@@ -247,12 +261,12 @@ class BEWARE:
     def read_wave_boundary_points(self):
         
         # Read BEWARE profs file
-        from cht_sfincs.sfincs import FlowBoundaryPoint
+        # from cht_sfincs.sfincs import FlowBoundaryPoint
                         
         # Loop through points
         for ind in range(len(self.profiles.xo)):
             name = self.profiles.profid[ind]
-            point = FlowBoundaryPoint(self.profiles.xo[ind],
+            point = BoundaryPoint(self.profiles.xo[ind],
                                       self.profiles.yo[ind],
                                        name=r'transect_' + str(int(name)))
                                       # name= str(int(name))) 
