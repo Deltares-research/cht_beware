@@ -40,14 +40,14 @@ class BEWARE:
             self.read_attribute_files(read_transect_data=read_transect_data)
 
     def read(self):
-        # Reads sfincs.inp and attribute files
+        # Reads beware.inp and attribute files
         self.input.read()
         if self.input.variables.epsg is not None:
             self.crs = CRS.from_epsg(self.input.variables.epsg)
         self.read_attribute_files()
 
     def write(self):
-        # Writes sfincs.inp and attribute files
+        # Writes beware.inp and attribute files
         self.input.write()
         self.write_attribute_files()
 
@@ -56,7 +56,7 @@ class BEWARE:
         if read_transect_data:
             self.transects.read()
 
-        # Boundary conditions (reads bnd and bzs file)
+        # Boundary conditions (reads bnd and bzs, bwv and bhs and btp files)
         self.boundary_conditions.read()
 
     def write_attribute_files(self):
