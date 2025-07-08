@@ -9,6 +9,7 @@ import numpy as np
 from pathlib import Path
 import os
 import geopandas as gpd
+import datetime
 
 class BewareRun:
 
@@ -80,7 +81,8 @@ class BewareRun:
                         "R2_CfHigh_all": [],
                         "R2_BsLow_all": [],
                         "R2_BsHigh_all": [],
-                        "P_all": []}
+                        "P_all": [],
+                        }
         
             if len(prob)>=1:
 
@@ -96,17 +98,6 @@ class BewareRun:
                     P_it = np.full((len(RRPids), 5, 8), 0.0)
 
                     # First find lower and upper bounds for input forcing condition
-                    # lower_bound = np.zeros(3)
-                    # upper_bound = np.zeros(3)
-
-                    # lower_bound[0] = xbcoords['Hs'][xbcoords['Hs'] <= Hs[it]].max()
-                    # lower_bound[1] = xbcoords['Tp'][xbcoords['Tp'] <= Tp[it]].max()
-                    # lower_bound[2] = xbcoords['WL'][xbcoords['WL'] <= WL[it]].max()
-
-                    # upper_bound[0] = xbcoords['Hs'][xbcoords['Hs'] > Hs[it]].min()
-                    # upper_bound[1] = xbcoords['Tp'][xbcoords['Tp'] > Tp[it]].min()
-                    # upper_bound[2] = xbcoords['WL'][xbcoords['WL'] > WL[it]].min()
-
                     lower_bound = [xbcoords[k][xbcoords[k] <= val].max() for k, val in zip(['Hs', 'Tp', 'WL'], [Hs[it], Tp[it], WL[it]])]
                     upper_bound = [xbcoords[k][xbcoords[k] > val].min() for k, val in zip(['Hs', 'Tp', 'WL'], [Hs[it], Tp[it], WL[it]])]
 
@@ -217,13 +208,13 @@ class BewareRun:
         file_name = os.path.join(self.model.path, "beware_his.nc")
 
         coords = {
-            "prof_id": (("nProfiles"), self.model.transects.gdf['name'].values),
-            "prof_x": (("nProfiles"), self.model.transects.gdf.geometry.x.values),
-            "prof_y": (("nProfiles"), self.model.transects.gdf.geometry.y.values),
-            "wave_x": (("nBoundariesWave"), self.model.boundary_conditions.gdf_wave.geometry.x.values),
-            "wave_y": (("nBoundariesWave"), self.model.boundary_conditions.gdf_wave.geometry.y.values),
-            "flow_x": (("nBoundariesFlow"), self.model.boundary_conditions.gdf_flow.geometry.x.values),
-            "flow_y": (("nBoundariesFlow"), self.model.boundary_conditions.gdf_flow.geometry.y.values),
+            "prof_id": (("prof_id"), self.model.transects.gdf['name'].values),
+            "prof_x": (("prof_id"), self.model.transects.gdf.geometry.x.values),
+            "prof_y": (("prof_id"), self.model.transects.gdf.geometry.y.values),
+            "wave_x": (("prof_id"), self.model.boundary_conditions.gdf_wave.geometry.x.values),
+            "wave_y": (("prof_id"), self.model.boundary_conditions.gdf_wave.geometry.y.values),
+            "flow_x": (("prof_id"), self.model.boundary_conditions.gdf_flow.geometry.x.values),
+            "flow_y": (("prof_id"), self.model.boundary_conditions.gdf_flow.geometry.y.values),
             "time": (("time"), self.model.boundary_conditions.gdf_wave.iloc[0]['timeseries'].index),
         }
 
@@ -238,53 +229,53 @@ class BewareRun:
         }
 
         data_vars = {
-            "Hs": (["nBoundariesWave", "time"], self.nc["Hs"],
+            "Hs": (["prof_id", "time"], self.nc["Hs"],
                 {"units": "m",
                     "long_name": "Significant wave height",
                     "description": "Significant wave height at boundary",
-                    "coordinates": "ProfID ProfXw ProfYw time"}),
+                    "coordinates": "prof_id wave_x wave_y time"}),
             
-            "Tp": (["nBoundariesWave", "time"], self.nc["Tp"],
+            "Tp": (["prof_id", "time"], self.nc["Tp"],
                 {"units": "sec",
                     "long_name": "Peak wave period",
                     "description": "Peak wave period at boundary",
-                    "coordinates": "ProfID ProfXw ProfYw time"}),
+                    "coordinates": "prof_id wave_x wave_y time"}),
             
-            "WL": (["nBoundariesFlow", "time"], self.nc["WL"],
+            "WL": (["prof_id", "time"], self.nc["WL"],
                 {"units": "m",
                     "long_name": "Still water level",
                     "description": "Still water level at boundary",
-                    "coordinates": "ProfID ProfXf ProfYf time"}),
+                    "coordinates": "prof_id flow_x flow_y time"}),
             
-            "R2": (["nProfiles", "time", "nR2estimates"], self.nc["R2"],
+            "R2": (["prof_id", "time", "nR2estimates"], self.nc["R2"],
                 {"units": "m",
                     "long_name": "Runup",
                     "description": "Runup (R2%) estimates (expected, 10, 25, 50, 75, 90 percentiles) per profile and forcing condition",
-                    "coordinates": "ProfID ProfX ProfY time"}),
+                    "coordinates": "prof_id prof_x prof_y time"}),
             
-            "R2_CfLow": (["nProfiles", "time", "nR2estimates"], self.nc["R2_CfLow"],
+            "R2_CfLow": (["prof_id", "time", "nR2estimates"], self.nc["R2_CfLow"],
                         {"units": "m",
                         "long_name": "Runup for low reef roughness",
                         "description": "Runup (R2%) estimates (expected, 10, 25, 50, 75, 90 percentiles) under low reef roughness (cf = 0.01) scenario per profile and forcing condition",
-                        "coordinates": "ProfID ProfX ProfY time"}),
+                        "coordinates": "prof_id prof_x prof_y time"}),
         
-            "R2_CfHigh": (["nProfiles", "time", "nR2estimates"], self.nc["R2_CfHigh"],
+            "R2_CfHigh": (["prof_id", "time", "nR2estimates"], self.nc["R2_CfHigh"],
                         {"units": "m",
                             "long_name": "Runup for high reef roughness",
                             "description": "Runup (R2%) estimates (expected, 10, 25, 50, 75, 90 percentiles) under high reef roughness (cf = 0.1) scenario per profile and forcing condition",
-                            "coordinates": "ProfID ProfX ProfY time"}),
+                            "coordinates": "prof_id prof_x prof_y time"}),
         
-            "R2_BsLow": (["nProfiles", "time", "nR2estimates"], self.nc["R2_BsLow"],
+            "R2_BsLow": (["prof_id", "time", "nR2estimates"], self.nc["R2_BsLow"],
                         {"units": "m",
                         "long_name": "Runup for mild beach slope",
                         "description": "Runup (R2%) estimates under mild beach slope (1:20) scenario",
-                        "coordinates": "ProfID ProfX ProfY time"}),
+                        "coordinates": "prof_id prof_x prof_y time"}),
         
-            "R2_BsHigh": (["nProfiles", "time", "nR2estimates"], self.nc["R2_BsHigh"],
+            "R2_BsHigh": (["prof_id", "time", "nR2estimates"], self.nc["R2_BsHigh"],
                         {"units": "m",
                             "long_name": "Runup for steep beach slope",
                             "description": "Runup (R2%) estimates (expected, 10, 25, 50, 75, 90 percentiles) under steep beach slope (1:5) scenario per profile and forcing condition",
-                            "coordinates": "ProfID ProfX ProfY time"})
+                            "coordinates": "prof_id prof_x prof_y time"})
         }
 
         ds = xr.Dataset(data_vars=data_vars, coords=coords)
@@ -312,7 +303,9 @@ class BewareRun:
         # Add general attributes to the dataset
         ds.attrs['title'] = "BEWARE netcdf output"
         ds.attrs['description'] = "BEWARE runup estimates"
+        ds.attrs['background'] = "https://doi.org/10.5194/nhess-2024-28"
         ds.attrs['crs'] = self.model.crs.to_string()
+        ds.attrs['created'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         compression = {var: {"zlib": True, "complevel": 5} for var in ds.data_vars}
 
@@ -324,5 +317,6 @@ class BewareRun:
 
         # Close the dataset
         ds.close()
+
 
 

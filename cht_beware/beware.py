@@ -68,7 +68,7 @@ class BEWARE:
         # Boundary conditions
         self.boundary_conditions.write()
 
-    def run(self, mode = 'run'):
+    def run_simulation(self, mode = 'run'):
         
         self.run = BewareRun(self)    
         self.run.execute()   

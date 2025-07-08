@@ -16,85 +16,55 @@ class BewareOutput:
 
     def read_his_file(self,
                             file_name=None,
-                            parameters=None,
-                            profiles=None,
-                            prcs=None,
-                            nodata=0.0):
-        """
-        Reads BEWARE history NetCDF file and returns a dictionary of DataFrames with requested parameters.
-
-        Parameters:
-        - file_name: Optional path to the NetCDF file
-        - parameters: List of parameters to read (e.g., ['R2', 'Hs', 'Tp', 'WL'])
-        - transects: Optional list of transect indices to extract
-        - prcs: List of percentiles to extract (e.g., [2, 98])
-        - nodata: Value to replace NaNs
-
-        Returns:
-        - data: dict of pandas DataFrames (e.g., data["R2"], data["WL"], etc.)
+                            profile=None,
+                            parameter=None):
+        """Reads a BEWARE history file and returns a DataFrame with timeseries
+        
+        Parameters
+        ----------
+        file_name : str, optional
+            Path to the BEWARE history file. If None, defaults to "beware_his.nc" in the model path.
+        profile : list, optional
+            List of profile indices or names to select from the dataset. If None, all profiles are selected.
+        parameter : dict, optional
+            Dictionary of parameters to select from the dataset. Keys are variable names and values are indices for R2 estimates.
         """
 
         if file_name is None:
             file_name = os.path.join(self.model.path, "beware_his.nc")
 
-
         ds = xr.open_dataset(file_name)
 
-        # Get list of all profile IDs from dataset (adjust key name accordingly)
-        if "Profiles" in ds:
-            all_profiles = [p.decode() if isinstance(p, bytes) else p for p in ds["Profiles"].values]
-        else:
-            all_profiles = None
+        # Optional: Select profiles or based on coordinates
+        if profile is not None:
+            if isinstance(profile[0], int):
+                ds = ds.isel(prof_id=profile)
+            elif isinstance(profile[0], str):
+                ds = ds.sel(prof_id=profile)
 
-        # Map profile IDs to indices
-        if profiles is not None and all_profiles is not None:
-            prof_sel = [all_profiles.index(t) for t in profiles if t in all_profiles]
-        else:
-            prof_sel = None  # read all
+        # Select parameters
+        if parameter is None:
+            parameter = {"R2": [0,1,2,3,4,5]}
 
-        # Default parameters
-        if parameters is None:
-            parameters = ["R2", "R2_setup", "Hs", "Tp", "WL"]
+        records = []
 
-        data = {}
+        prof_xs = ds["prof_x"].values
+        prof_ys = ds["prof_y"].values
 
-        def select_profiles(var):
-            values = var.values
-            if prof_sel is not None:
-                values = values[prof_sel, ...]  # assume transects on first dim
-            return np.nan_to_num(values, nan=nodata)
+        for i, prof_name in enumerate(ds.prof_id.values):
+            prof_name = str(prof_name)
+            for t_idx, t in enumerate(ds.time.values):
+                row = {
+                    "time": pd.to_datetime(t),
+                    "prof_id": prof_name,
+                    "prof_x": prof_xs[i],
+                    "prof_y": prof_ys[i]
+                }
+                for var, est_indices in parameter.items():
+                    vals = ds[var].isel(prof_id=i, time=t_idx, nR2estimates=est_indices).values
+                    row[var] = vals.item() if len(est_indices) == 1 else vals.tolist()
+                records.append(row)
 
-        for param in parameters:
-            if param in ds:
-                values = select_profiles(ds[param])
-                data[param] = pd.DataFrame(values)
+        df = pd.DataFrame(records).set_index(["time", "prof_id", "prof_x", "prof_y"]).sort_index()
 
-        # Swash calculation
-        if all(p in data for p in ["R2", "R2_setup", "WL"]):
-            data["swash"] = data["R2"] - data["R2_setup"] - data["WL"]
-
-        # Coordinates (assumed same indexing)
-        for coord in ["x_coast", "y_coast", "x_off", "y_off"]:
-            if coord in ds:
-                values = select_profiles(ds[coord])
-                data[coord] = pd.Series(values)
-
-        # Percentiles
-        if prcs:
-            for prc in prcs:
-                key_r2 = f"R2_{int(round(prc))}"
-                key_setup = f"R2_setup_{int(round(prc))}"
-                if key_r2 in ds:
-                    data[key_r2] = pd.DataFrame(np.nan_to_num(ds[key_r2].values, nan=nodata))
-                if key_setup in ds:
-                    data[key_setup] = pd.DataFrame(np.nan_to_num(ds[key_setup].values, nan=nodata))
-
-        # Set start time if not already defined
-        if not getattr(self.input, "tstart", None):
-            if "time" in ds:
-                t0 = float(ds["time"].values[0])
-                self.input.tstart = datetime.datetime(1970, 1, 1) + datetime.timedelta(seconds=t0)
-
-        ds.close()
-        return data
-
+        return df
