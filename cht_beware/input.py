@@ -102,6 +102,7 @@ class BewareInput():
         # Make some adjustments
         variables = copy.copy(self.variables)
 
+        # TODO: why only when epsg is geographic?
         if self.model.crs.is_geographic:
             variables.epsg = self.model.crs.to_epsg()
 

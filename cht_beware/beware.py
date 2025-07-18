@@ -8,7 +8,9 @@ BEWARE runup & flooding calculation
 """
 import numpy as np
 import os
+from pathlib import Path
 from pyproj import CRS
+from typing import Union
 
 from .input import BewareInput
 from .transects import BewareTransects
@@ -18,8 +20,29 @@ from .run import BewareRun
 
 class BEWARE:
     
-    def __init__(self,  root=None, crs=4326, mode="w", read_transect_data=True):               
-       
+    def __init__(
+        self,
+        root: Union[str, Path] = None,
+        crs: Union[str, CRS] = 4326,
+        mode: str = "w",
+        read_transect_data: bool = True,
+    ):
+        """
+        The BEWARE model class contains methods to read, write and run the BEWARE model.
+
+        Parameters
+        ----------
+        root: str, Path, optional
+            Path to model folder. If None, current working directory is used.
+        crs: int, str, CRS, optional
+            Coordinate reference system of the model. Can be an EPSG code (int), or a CRS object.
+            Default is 4326 (WGS84).
+        mode: {'w', 'r', 'run'}
+            Open model in write, reading mode, by default 'w'
+        read_transect_data: bool, optional
+            If True, reads transect data from the attribute files. Default is True.
+        """
+         
         if not root:
             root = os.getcwd()
     

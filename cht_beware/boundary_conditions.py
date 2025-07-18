@@ -19,7 +19,10 @@ class BewareBoundaryConditions:
     def __init__(self, model):
         self.model = model
         self.forcing = "timeseries"
+        #FIXME gdf is not used, maybe remove? and use gdf_flow and gdf_wave directly
         self.gdf = gpd.GeoDataFrame()
+        self.gdf_flow = gpd.GeoDataFrame()
+        self.gdf_wave = gpd.GeoDataFrame()
         self.times = []
 
     def read(self):
@@ -32,10 +35,12 @@ class BewareBoundaryConditions:
         # Write all boundary data
         self.write_boundary_points('bndfile', 'gdf_flow')
         self.write_boundary_points('bwvfile', 'gdf_wave')
-        self.write_flow_boundary_conditions_timeseries()
-        self.write_wave_boundary_conditions_timeseries()
+        self.write_boundary_conditions_timeseries("flow", 'gdf_flow')
+        self.write_boundary_conditions_timeseries("wave", 'gdf_wave')
 
     def read_boundary_points(self, file_type='bndfile', gdf_name='gdf_flow'):
+        """ Reads boundary points from the specified file type and stores them in a GeoDataFrame.
+        """
         file_name = getattr(self.model.input.variables, file_type)
         if not file_name:
             return
@@ -43,6 +48,8 @@ class BewareBoundaryConditions:
         file_name = os.path.join(self.model.path, file_name)
 
         if not os.path.exists(file_name):
+            #FIXME should we raise an error or just print a warning?
+            # raise FileNotFoundError(f"File {file_name} does not exist!")
             print(f"Warning! File {file_name} does not exist!")
             return
 
@@ -86,7 +93,7 @@ class BewareBoundaryConditions:
                     fid.write(f'{x:12.1f}{y:12.1f} {name}\n')
 
 
-    def read_boundary_conditions_timeseries(self, bc_type = 'flow'):
+    def read_boundary_conditions_timeseries(self, bc_type:str = 'flow'):
         """
         Reads boundary time series for water level (zs) or waves (hs, tp) into the GeoDataFrame.
         

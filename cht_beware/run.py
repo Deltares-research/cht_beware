@@ -41,11 +41,12 @@ class BewareRun:
         # Initialize outputs - align dimensions
         n_profiles = len(profs)
         n_forcings = len(self.model.boundary_conditions.gdf_wave.iloc[0]['timeseries']['hs'].values)
-        nc_results = {"R2": np.full((n_profiles, n_forcings, 6), np.nan),
-                      "R2_CfLow": np.full((n_profiles, n_forcings, 6), np.nan),
-                      "R2_CfHigh": np.full((n_profiles, n_forcings, 6), np.nan),
-                      "R2_BsLow": np.full((n_profiles, n_forcings, 6), np.nan),
-                      "R2_BsHigh": np.full((n_profiles, n_forcings, 6), np.nan),
+        n_r2estimates = 6
+        nc_results = {"R2": np.full((n_profiles, n_forcings, n_r2estimates), np.nan),
+                      "R2_CfLow": np.full((n_profiles, n_forcings, n_r2estimates), np.nan),
+                      "R2_CfHigh": np.full((n_profiles, n_forcings, n_r2estimates), np.nan),
+                      "R2_BsLow": np.full((n_profiles, n_forcings, n_r2estimates), np.nan),
+                      "R2_BsHigh": np.full((n_profiles, n_forcings, n_r2estimates), np.nan),
                       'Hs'  : np.full((n_profiles, n_forcings), np.nan),
                       'Tp'  : np.full((n_profiles, n_forcings), np.nan),
                       'WL'  : np.full((n_profiles, n_forcings), np.nan),
@@ -219,13 +220,13 @@ class BewareRun:
         }
 
         coord_attrs = {
-        "prof_id": {"long_name": "Profile identifier", "description": "Unique profile ID"},
-        "prof_x": {"units": "m", "long_name": "Profile X-coordinate"},
-        "prof_y": {"units": "m", "long_name": "Profile Y-coordinate"},
-        "wave_x": {"units": "m", "long_name": "Wave boundary X-coordinate"},
-        "wave_y": {"units": "m", "long_name": "Wave boundary Y-coordinate"},
-        "flow_x": {"units": "m", "long_name": "Flow boundary X-coordinate"},
-        "flow_y": {"units": "m", "long_name": "Flow boundary Y-coordinate"},
+            "prof_id": {"long_name": "Profile identifier", "description": "Unique profile ID"},
+            "prof_x": {"units": "m", "long_name": "Profile X-coordinate"},
+            "prof_y": {"units": "m", "long_name": "Profile Y-coordinate"},
+            "wave_x": {"units": "m", "long_name": "Wave boundary X-coordinate"},
+            "wave_y": {"units": "m", "long_name": "Wave boundary Y-coordinate"},
+            "flow_x": {"units": "m", "long_name": "Flow boundary X-coordinate"},
+            "flow_y": {"units": "m", "long_name": "Flow boundary Y-coordinate"},
         }
 
         data_vars = {
@@ -280,7 +281,7 @@ class BewareRun:
 
         ds = xr.Dataset(data_vars=data_vars, coords=coords)
 
-        # Add input variables
+        # Add input variables for reproducibility
         inp = xr.DataArray(np.array(1, dtype='int32'))
 
         # Add all input variables as attributes on this DataArray
@@ -296,6 +297,14 @@ class BewareRun:
 
         ds["inp"] = inp
 
+        # Define CRS as a variable following CF conventions
+        crs_cf_attrs = self.model.crs.to_cf()
+        crs_cf_attrs["spatial_ref"] = self.model.crs.to_wkt()  # optional but common
+        crs_cf_attrs["crs_wkt"] = self.model.crs.to_wkt()      # optional, also for compatibility
+
+        # Create a CRS variable in the dataset
+        ds["crs"] = xr.DataArray(0, attrs=crs_cf_attrs)
+
         # Add coordinates attributes
         for coord, attrs in coord_attrs.items():
             ds.coords[coord].attrs |= attrs
@@ -304,7 +313,6 @@ class BewareRun:
         ds.attrs['title'] = "BEWARE netcdf output"
         ds.attrs['description'] = "BEWARE runup estimates"
         ds.attrs['background'] = "https://doi.org/10.5194/nhess-2024-28"
-        ds.attrs['crs'] = self.model.crs.to_string()
         ds.attrs['created'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         compression = {var: {"zlib": True, "complevel": 5} for var in ds.data_vars}

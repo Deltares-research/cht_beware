@@ -17,5 +17,6 @@ dependencies = [
     "xarray",
     "netCDF4",
     "mat73",
+    "tabulate",
     "cht-utils",
 ]

@@ -27,6 +27,7 @@ class BewareTransects():
 
         # Read .points file
         if not self.model.input.variables.xytfile:
+            print("No transect points file specified in input variables.")
             return
 
         file_name = os.path.join(self.model.path, self.model.input.variables.xytfile)
@@ -60,6 +61,7 @@ class BewareTransects():
         """Read NetCDF file with profile matching data and assign ProbtoCR2 to gdf based on ProfID"""
 
         if not self.model.input.variables.r2matchfile:
+            print("No transect matching file specified in input variables.")
             return
         
         # file_name = os.path.join(self.model.path, self.model.input.variables.r2matchfile)
@@ -94,8 +96,8 @@ class BewareTransects():
         ds.close()
 
         print(f"Read transect matching data from {file_name} in {time.time() - start_time:.2f} seconds")
+    
     def write(self):
-
         if len(self.gdf.index)==0:
             return
 
