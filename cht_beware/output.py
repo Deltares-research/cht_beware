@@ -4,7 +4,6 @@ Created on 2025-06-06 09:26
 
 @author: roelvink (f.e.)
 """
-import os
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -12,6 +11,13 @@ import xarray as xr
 class BewareOutput:
 
     def __init__(self, model):
+        """
+        The BEWARE Output class contains methods to read the BEWARE output.
+        Parameters
+        ----------
+        model: BEWARE model object
+            The BEWARE model instance to which the output belongs.
+        """
         self.model = model
 
     def read_his_file(self,
@@ -31,7 +37,7 @@ class BewareOutput:
         """
 
         if file_name is None:
-            file_name = os.path.join(self.model.path, "beware_his.nc")
+            file_name = self.model.path / "beware_his.nc"
 
         ds = xr.open_dataset(file_name)
 

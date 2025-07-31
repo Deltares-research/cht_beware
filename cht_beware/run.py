@@ -7,19 +7,29 @@ Created on 2025-06-06 16:02
 import xarray as xr
 import numpy as np
 from pathlib import Path
-import os
 import geopandas as gpd
 import datetime
+import time
 
 class BewareRun:
 
     def __init__(self, model):
+        """
+        The BEWARE Run class contains methods to execute and save BEWARE runs.
+
+        Parameters
+        ----------
+        model: BEWARE model object
+            The BEWARE model instance to which the run belongs.
+        """
         self.model = model
 
-    def execute(self):
+    def execute(self, write_his=True):
+        """Execute the BEWARE run, reading input data and calculating runup estimates."""
 
         if not self.model.input.variables.xbdatabase:
-            raise ValueError("xb database file not set in input variables. Please set 'xbdatabase' in beware.inp")
+            self.model.logger.error("XBeach run database (.nc) not set in input variables. Please set 'xbdatabase' in beware.inp")
+            return
         
         # Input transects with Prob of Matching to CR2
         profs = self.model.transects.gdf
@@ -27,18 +37,23 @@ class BewareRun:
         # XBeach database
         file_name = Path(self.model.input.variables.xbdatabase)
         if not file_name.is_absolute():
-            file_name = Path(self.model.path) / file_name
+            file_name = self.model.path / file_name
 
-        if not os.path.exists(file_name):
-            print(f"Warning! File {file_name} does not exist!")
+        if not file_name.exists():
+            self.model.logger.error(f"XBeach database file {file_name} does not exist!")
             return
         
+        start_input = time.perf_counter()
         ds_xb = xr.open_dataset(file_name)
         xbcoords = {}
         for var in ['Hs', 'Tp', 'WL', 'CfMod', 'BsMod']:
             xbcoords[var] = ds_xb[var].values  # 1D arrays over nConditions
+        end_input = time.perf_counter()
+        self.model.logger.info(f"Read XBeach database in {end_input - start_input:.2f} seconds")
 
         # Initialize outputs - align dimensions
+        self.model.logger.info(f"\n------------- Simulation ------------\n")
+
         n_profiles = len(profs)
         n_forcings = len(self.model.boundary_conditions.gdf_wave.iloc[0]['timeseries']['hs'].values)
         n_r2estimates = 6
@@ -51,13 +66,16 @@ class BewareRun:
                       'Tp'  : np.full((n_profiles, n_forcings), np.nan),
                       'WL'  : np.full((n_profiles, n_forcings), np.nan),
                     }
+        self.model.logger.info(f"Initialized output arrays for {n_profiles} profiles and {n_forcings} forcing conditions.")
+
         gdf_results = []
-        
+
         # Loop through the input profiles
+        start_interp = time.perf_counter()
         for iprof, prof in profs.iterrows():
             prof_name = prof["name"]
 
-            print(f"Processing profile {iprof+1}/{n_profiles}")
+            self.model.logger.info(f"Processing profile {prof_name} ({iprof+1}/{n_profiles})")
 
             # Get the RRP ids and matching probabilities
             prob2BW2 = prof['ProbtoCR2']
@@ -69,7 +87,7 @@ class BewareRun:
             Hs = self.model.boundary_conditions.gdf_wave.iloc[iprof]['timeseries']['hs'].values
             Tp = self.model.boundary_conditions.gdf_wave.iloc[iprof]['timeseries']['tp'].values
             WL = self.model.boundary_conditions.gdf_flow.iloc[iprof]['timeseries']['wl'].values
-            time = self.model.boundary_conditions.gdf_wave.iloc[iprof]['timeseries'].index
+            time_index = self.model.boundary_conditions.gdf_wave.iloc[iprof]['timeseries'].index
 
             # Store forcing conditions in the output arrays
             nc_results['Hs'][iprof, :] = Hs
@@ -88,7 +106,7 @@ class BewareRun:
             if len(prob)>=1:
 
                 # Loop through the forcing conditions
-                for it in range(len(time)):
+                for it in range(len(time_index)):
 
                     # Initialize arrays per timestep
                     R2_it = np.full((len(RRPids), 5, 8), np.nan) # Nr of RRPs x 5 R2 estimates x 8 neighboring conditions
@@ -175,7 +193,7 @@ class BewareRun:
                 output = {
                     'name': prof_name,
                     'geometry': prof.geometry,  # or prof['geometry']
-                    'time': time,
+                    'time': time_index,
                     'Hs': Hs,
                     'Tp': Tp,
                     'WL': WL,
@@ -193,20 +211,32 @@ class BewareRun:
                 }
                 gdf_results.append(output)
 
+        end_interp = time.perf_counter()
+        self.model.logger.info(f"Processed {len(gdf_results)} profiles with runup estimates.")
+
         # Close the xBeach dataset
         ds_xb.close()
 
         # Save the results to a GeoDataFrame and array for netcdf
+        start_output = time.perf_counter()
         self.gdf = gpd.GeoDataFrame(gdf_results, geometry='geometry')
         self.nc = nc_results
 
+        if write_his:
+            self.write_his_file()
+            self.model.logger.info("Results written to beware_his.nc")
+        end_output = time.perf_counter()
+
+        report = generate_report(self.model, sim_time=end_interp - start_interp, output_time=end_output - start_output)     
+        self.model.logger.info(report)
 
     def write_his_file(self):
+        """Writes the results to a NetCDF file."""
 
         if not hasattr(self, 'nc'):
             raise RuntimeError("No results to write. Run execute() first.")
 
-        file_name = os.path.join(self.model.path, "beware_his.nc")
+        file_name = self.model.path / "beware_his.nc"
 
         coords = {
             "prof_id": (("prof_id"), self.model.transects.gdf['name'].values),
@@ -297,14 +327,6 @@ class BewareRun:
 
         ds["inp"] = inp
 
-        # Define CRS as a variable following CF conventions
-        crs_cf_attrs = self.model.crs.to_cf()
-        crs_cf_attrs["spatial_ref"] = self.model.crs.to_wkt()  # optional but common
-        crs_cf_attrs["crs_wkt"] = self.model.crs.to_wkt()      # optional, also for compatibility
-
-        # Create a CRS variable in the dataset
-        ds["crs"] = xr.DataArray(0, attrs=crs_cf_attrs)
-
         # Add coordinates attributes
         for coord, attrs in coord_attrs.items():
             ds.coords[coord].attrs |= attrs
@@ -313,18 +335,36 @@ class BewareRun:
         ds.attrs['title'] = "BEWARE netcdf output"
         ds.attrs['description'] = "BEWARE runup estimates"
         ds.attrs['background'] = "https://doi.org/10.5194/nhess-2024-28"
+        ds.attrs['crs'] = self.model.crs.to_string()
         ds.attrs['created'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         compression = {var: {"zlib": True, "complevel": 5} for var in ds.data_vars}
 
         ds.to_netcdf(file_name, encoding=compression)
 
-        # Print success message and dataset info
-        print(f"NetCDF file written to {file_name}")
-        print(ds)
-
         # Close the dataset
         ds.close()
 
 
+def generate_report(model, sim_time, output_time):
+    """Generate a report of the simulation run times for beware.log"""
+    import re
 
+    if (model.path / "beware.log").exists():
+        with open(model.path / "beware.log", "r", encoding="utf-8") as f:
+            log_text = f.read()
+        # Look between the "Reading input" and "Simulation" sections for input times
+        match = re.search(r'------- Reading input ----------(.*?)------- Simulation ----------', log_text, re.DOTALL)
+        reading_section = match.group(1)
+        times = re.findall(r'in ([\d.]+) seconds', reading_section)
+        input_time = sum(float(t) for t in times)
+    else: 
+        input_time = 0.0
+
+    return (
+        "\n-------- Simulation finished --------\n\n"
+        f" Total time             : {sim_time+input_time+output_time:10.3f}\n"
+        f" Total simulation time  : {sim_time:10.3f}\n"
+        f" Time in input          : {input_time:10.3f}\n"
+        f" Time in output         : {output_time:10.3f}\n"
+    )
