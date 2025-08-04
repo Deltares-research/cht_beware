@@ -58,6 +58,7 @@ class BewareRun:
         n_forcings = len(self.model.boundary_conditions.gdf_wave.iloc[0]['timeseries']['hs'].values)
         n_r2estimates = 6
         nc_results = {"R2": np.full((n_profiles, n_forcings, n_r2estimates), np.nan),
+                      "R2_base": np.full((n_profiles, n_forcings, n_r2estimates), np.nan),
                       "R2_CfLow": np.full((n_profiles, n_forcings, n_r2estimates), np.nan),
                       "R2_CfHigh": np.full((n_profiles, n_forcings, n_r2estimates), np.nan),
                       "R2_BsLow": np.full((n_profiles, n_forcings, n_r2estimates), np.nan),
@@ -74,6 +75,25 @@ class BewareRun:
         start_interp = time.perf_counter()
         for iprof, prof in profs.iterrows():
             prof_name = prof["name"]
+            prof_cf = prof["friction"]
+            prof_bs = prof["beachslope"]
+
+            # Get the best R2 correction value (friction and beach slope)
+            if prof_cf == 0.05 and prof_bs == 0.1:
+                R2string = 'R2_base'
+            elif prof_cf == 0.1:
+                R2string = 'R2_CfHigh'
+            elif prof_cf == 0.01:
+                R2string = 'R2_CfLow'
+            elif prof_bs == 0.05:
+                R2string = 'R2_BsLow'
+            elif prof_bs == 0.2:
+                R2string = 'R2_BsHigh'
+            else:
+                self.model.logger.warning(
+                    f"Profile '{prof_name}': unexpected friction ({prof_cf}) or beachslope ({prof_bs}). Defaulting to R2_base."
+                )
+                R2string = 'R2_base'
 
             self.model.logger.info(f"Processing profile {prof_name} ({iprof+1}/{n_profiles})")
 
@@ -96,6 +116,7 @@ class BewareRun:
 
             # Initialize gdf results for this profile
             gdf_results_iprof = {"R2_all": [],
+                        "R2_base_all": [],
                         "R2_CfLow_all": [],
                         "R2_CfHigh_all": [],
                         "R2_BsLow_all": [],
@@ -109,7 +130,7 @@ class BewareRun:
                 for it in range(len(time_index)):
 
                     # Initialize arrays per timestep
-                    R2_it = np.full((len(RRPids), 5, 8), np.nan) # Nr of RRPs x 5 R2 estimates x 8 neighboring conditions
+                    R2_base_it = np.full((len(RRPids), 5, 8), np.nan) # Nr of RRPs x 5 R2 estimates x 8 neighboring conditions
                     R2_CfLow_it = np.full((len(RRPids), 5, 8), np.nan)
                     R2_CfHigh_it = np.full((len(RRPids), 5, 8), np.nan)
                     R2_BsLow_it = np.full((len(RRPids), 5, 8), np.nan)
@@ -153,7 +174,7 @@ class BewareRun:
                         P_it[irrp, :] = tmp
 
                         # Now append the R2 data to the R2_it array
-                        R2_it[irrp, :] = R2data
+                        R2_base_it[irrp, :] = R2data
                         R2_CfLow_it[irrp, :] = R2data * R2CfMod[0,:]
                         R2_CfHigh_it[irrp, :] = R2data * R2CfMod[1,:]
                         R2_BsLow_it[irrp, :] = R2data * R2BsMod[0,:]
@@ -161,7 +182,7 @@ class BewareRun:
                     
                     # Now remove values where P_it is zero
                     valid_mask = P_it.flatten() > 0
-                    R2_flat     = R2_it.flatten()[valid_mask]
+                    R2_base_flat     = R2_base_it.flatten()[valid_mask]
                     R2_CfLow_flat = R2_CfLow_it.flatten()[valid_mask]
                     R2_CfHigh_flat = R2_CfHigh_it.flatten()[valid_mask]
                     R2_BsLow_flat = R2_BsLow_it.flatten()[valid_mask]
@@ -174,15 +195,20 @@ class BewareRun:
                         percentiles = np.percentile(values, [10, 25, 50, 75, 90], method = "inverted_cdf", weights=weights)
                         return np.concatenate([[mean], percentiles])
 
+                    # Get best R2 estimate for this profile friction and beach slope
+                    R2_best_flat = eval(f"{R2string}_flat")
+
                     # Now store statistics for netcdf
-                    nc_results["R2"][iprof, it,:] = get_stats(R2_flat, P_flat)
+                    nc_results["R2"][iprof, it, :] = get_stats(R2_best_flat, P_flat)
+                    nc_results["R2_base"][iprof, it,:] = get_stats(R2_base_flat, P_flat)
                     nc_results["R2_CfLow"][iprof, it,:] = get_stats(R2_CfLow_flat, P_flat)
                     nc_results["R2_CfHigh"][iprof, it,:] = get_stats(R2_CfHigh_flat, P_flat)
                     nc_results["R2_BsLow"][iprof, it,:] = get_stats(R2_BsLow_flat, P_flat)
                     nc_results["R2_BsHigh"][iprof, it,:] = get_stats(R2_BsHigh_flat, P_flat)
 
                     # Now store all (five or less) runup values in the gdf results dictionary
-                    gdf_results_iprof['R2_all'].append(R2_flat)
+                    gdf_results_iprof['R2_all'].append(R2_best_flat)
+                    gdf_results_iprof['R2_base_all'].append(R2_base_flat)
                     gdf_results_iprof['R2_CfLow_all'].append(R2_CfLow_flat)
                     gdf_results_iprof['R2_CfHigh_all'].append(R2_CfHigh_flat)
                     gdf_results_iprof['R2_BsLow_all'].append(R2_BsLow_flat)
@@ -193,16 +219,20 @@ class BewareRun:
                 output = {
                     'name': prof_name,
                     'geometry': prof.geometry,  # or prof['geometry']
+                    'beachslope': prof_bs,
+                    'friction': prof_cf,
                     'time': time_index,
                     'Hs': Hs,
                     'Tp': Tp,
                     'WL': WL,
                     'R2': nc_results["R2"][iprof,:],
+                    'R2_base': nc_results["R2_base"][iprof,:],
                     'R2_CfLow': nc_results["R2_CfLow"][iprof,:],
                     'R2_CfHigh': nc_results["R2_CfHigh"][iprof,:],
                     'R2_BsLow': nc_results["R2_BsLow"][iprof,:],
                     'R2_BsHigh': nc_results["R2_BsHigh"][iprof,:],
                     'R2_all': gdf_results_iprof['R2_all'],
+                    'R2_base_all': gdf_results_iprof['R2_base_all'],
                     'R2_CfLow_all': gdf_results_iprof['R2_CfLow_all'],
                     'R2_CfHigh_all': gdf_results_iprof['R2_CfHigh_all'],
                     'R2_BsLow_all': gdf_results_iprof['R2_BsLow_all'],
@@ -277,11 +307,17 @@ class BewareRun:
                     "long_name": "Still water level",
                     "description": "Still water level at boundary",
                     "coordinates": "prof_id flow_x flow_y time"}),
-            
+
             "R2": (["prof_id", "time", "nR2estimates"], self.nc["R2"],
                 {"units": "m",
                     "long_name": "Runup",
                     "description": "Runup (R2%) estimates (expected, 10, 25, 50, 75, 90 percentiles) per profile and forcing condition",
+                    "coordinates": "prof_id prof_x prof_y time"}),
+                        
+            "R2_base": (["prof_id", "time", "nR2estimates"], self.nc["R2_base"],
+                {"units": "m",
+                    "long_name": "Runup base case",
+                    "description": "Runup (R2%) estimates (expected, 10, 25, 50, 75, 90 percentiles) per profile and forcing condition under medium reef roughness (cf = 0.05) and beach slope (1:10)",
                     "coordinates": "prof_id prof_x prof_y time"}),
             
             "R2_CfLow": (["prof_id", "time", "nR2estimates"], self.nc["R2_CfLow"],
@@ -299,7 +335,7 @@ class BewareRun:
             "R2_BsLow": (["prof_id", "time", "nR2estimates"], self.nc["R2_BsLow"],
                         {"units": "m",
                         "long_name": "Runup for mild beach slope",
-                        "description": "Runup (R2%) estimates under mild beach slope (1:20) scenario",
+                        "description": "Runup (R2%) estimates (expected, 10, 25, 50, 75, 90 percentiles) under mild beach slope (1:20) scenario per profile and forcing condition",
                         "coordinates": "prof_id prof_x prof_y time"}),
         
             "R2_BsHigh": (["prof_id", "time", "nR2estimates"], self.nc["R2_BsHigh"],
