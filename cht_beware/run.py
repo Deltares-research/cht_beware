@@ -149,6 +149,20 @@ class BewareRun:
                         )
                     id_forcing = np.where(xb_mask)[0]
 
+                    # Adjust period when Hs, Tp combi is not present
+                    while id_forcing.size<8:
+                        Tp[it] = np.ceil(Tp[it] + 1)+0.01
+                        lower_bound = [xbcoords[k][xbcoords[k] <= val].max() for k, val in zip(['Hs', 'Tp', 'WL'], [Hs[it], Tp[it], WL[it]])]
+                        upper_bound = [xbcoords[k][xbcoords[k] > val].min() for k, val in zip(['Hs', 'Tp', 'WL'], [Hs[it], Tp[it], WL[it]])]
+                        xb_mask = (
+                                (xbcoords['Hs'] >= lower_bound[0]) & (xbcoords['Hs'] <= upper_bound[0]) &
+                                (xbcoords['Tp'] >= lower_bound[1]) & (xbcoords['Tp'] <= upper_bound[1]) &
+                                (xbcoords['WL'] >= lower_bound[2]) & (xbcoords['WL'] <= upper_bound[2])
+                            )
+                        id_forcing = np.where(xb_mask)[0]
+                        if id_forcing.size>0:        
+                            self.model.logger.info(f"Adjusted period to Tp = {Tp[it]}")
+                       
                     # Get associated NGMiD and probabilities for the forcing interpolation
                     xb_vals = np.vstack([xbcoords[k][id_forcing] for k in  ['Hs', 'Tp', 'WL']])
                     forc_vals = np.array([Hs[it], Tp[it], WL[it]])
