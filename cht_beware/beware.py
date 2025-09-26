@@ -59,13 +59,14 @@ class BEWARE:
         self.logger.addHandler(handler)
         self.logger.setLevel(logging.INFO)
 
-    def read(self):
+    def read(self, read_attribute_files = True):
         """Reads the input and attribute files"""
         # Reads beware.inp and attribute files
         self.input.read()
         if self.input.variables.epsg is not None:
             self.crs = CRS.from_epsg(self.input.variables.epsg)
-        self.read_attribute_files()
+        if read_attribute_files:
+            self.read_attribute_files()
 
     def write(self):
         """Writes the input and attribute files"""

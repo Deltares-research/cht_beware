@@ -7,7 +7,7 @@ Created on 2025-06-06 09:26
 import numpy as np
 import pandas as pd
 import xarray as xr
-
+import time
 class BewareOutput:
 
     def __init__(self, model):
@@ -35,11 +35,15 @@ class BewareOutput:
         parameter : dict, optional
             Dictionary of parameters to select from the dataset. Keys are variable names and values are indices for R2 estimates.
         """
+        self.model.logger.info(f"\n--------------- Output --------------\n")
 
         if file_name is None:
             file_name = self.model.path / "beware_his.nc"
 
+        start_output = time.perf_counter()
         ds = xr.open_dataset(file_name)
+        end_output = time.perf_counter()
+        self.model.logger.info(f"Time to read output: {end_output - start_output:.2f} seconds")
 
         # Optional: Select profiles or based on coordinates
         if profile is not None:
@@ -47,30 +51,21 @@ class BewareOutput:
                 ds = ds.isel(prof_id=profile)
             elif isinstance(profile[0], str):
                 ds = ds.sel(prof_id=profile)
-
+        
         # Select parameters
         if parameter is None:
-            parameter = {"R2": [0,1,2,3,4,5]}
+            parameter = {"R2": [0], "Hs": [0], "Tp": [0], "WL": [0]}
 
-        records = []
+        sel_vars = []
+        for var, est_indices in parameter.items():
+            if "nR2estimates" in ds[var].dims:
+                sel_vars.append(ds[var].isel(nR2estimates=est_indices))
+            else:
+                sel_vars.append(ds[var])
 
-        prof_xs = ds["prof_x"].values
-        prof_ys = ds["prof_y"].values
-
-        for i, prof_name in enumerate(ds.prof_id.values):
-            prof_name = str(prof_name)
-            for t_idx, t in enumerate(ds.time.values):
-                row = {
-                    "time": pd.to_datetime(t),
-                    "prof_id": prof_name,
-                    "prof_x": prof_xs[i],
-                    "prof_y": prof_ys[i]
-                }
-                for var, est_indices in parameter.items():
-                    vals = ds[var].isel(prof_id=i, time=t_idx, nR2estimates=est_indices).values
-                    row[var] = vals.item() if len(est_indices) == 1 else vals.tolist()
-                records.append(row)
-
-        df = pd.DataFrame(records).set_index(["time", "prof_id", "prof_x", "prof_y"]).sort_index()
+        sel = xr.merge(sel_vars)
+        df = sel.to_dataframe().reset_index()
+        df = df.set_index(["time", "prof_id", "prof_x", "prof_y", "wave_x", "wave_y", "flow_x", "flow_y"])
+        df.drop(columns=["nR2estimates"], inplace=True, errors='ignore')
 
         return df

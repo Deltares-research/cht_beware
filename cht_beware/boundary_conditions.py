@@ -69,7 +69,7 @@ class BewareBoundaryConditions:
 
         # Read the bnd file
         df = pd.read_csv(file_name, index_col=False, header=None,
-                         names=['x', 'y', 'name'], sep=r"\s+")
+                         names=['x', 'y', 'name'], sep=r"\s+", encoding='latin1')
 
         gdf_list = []
         # Loop through points

@@ -48,7 +48,7 @@ class BewareTransects():
 
         # Read the bnd file
         df = pd.read_csv(file_name, index_col=False, header=None,
-                         names=['x', 'y', 'beachslope', 'friction', 'name'], sep="\s+")
+                         names=['x', 'y', 'beachslope', 'friction', 'name'], sep="\s+", encoding='latin1')
 
         gdf_list = []
         # Loop through points
