@@ -5,50 +5,71 @@ Created on 2025-06-05 13:45
 @author: roelvink (f.e.)
 """
 
-import os
 import geopandas as gpd
 import shapely
 import pandas as pd
 from tabulate import tabulate
+import time
 
 class BewareBoundaryConditions:
-    """
-    Class to handle BEWARE boundary conditions.
-    """
     
     def __init__(self, model):
+        """
+        The BEWARE boundary conditions class contains methods to read and write flow and wave boundary conditions.
+
+        Parameters
+        ----------
+        model: BEWARE model object
+            The BEWARE model instance to which the boundary conditions belong.
+        gdf_flow: GeoDataFrame
+            GeoDataFrame containing flow boundary points with their coordinates, names, and timeseries [wl].
+        gdf_wave: GeoDataFrame
+            GeoDataFrame containing wave boundary points with their coordinates, names, and timeseries [hs, tp].
+        """
         self.model = model
-        self.forcing = "timeseries"
-        self.gdf = gpd.GeoDataFrame()
+        self.gdf_flow = gpd.GeoDataFrame()
+        self.gdf_wave = gpd.GeoDataFrame()
         self.times = []
 
     def read(self):
-        self.read_boundary_points('bndfile', 'gdf_flow') # Read water level boundary points
-        self.read_boundary_points('bwvfile', 'gdf_wave') # Read wave boundary points
+        self.read_boundary_points('flow') # Read water level boundary points
+        self.read_boundary_points('wave') # Read wave boundary points
         self.read_boundary_conditions_timeseries('flow')
         self.read_boundary_conditions_timeseries('wave')
         
     def write(self):
         # Write all boundary data
-        self.write_boundary_points('bndfile', 'gdf_flow')
-        self.write_boundary_points('bwvfile', 'gdf_wave')
-        self.write_flow_boundary_conditions_timeseries()
-        self.write_wave_boundary_conditions_timeseries()
+        self.write_boundary_points('flow')
+        self.write_boundary_points('wave')
+        self.write_boundary_conditions_timeseries('flow')
+        self.write_boundary_conditions_timeseries('wave')
 
-    def read_boundary_points(self, file_type='bndfile', gdf_name='gdf_flow'):
+    def read_boundary_points(self, bc_type:str = 'flow'):
+        """ Reads boundary points from the specified file type and stores them in a GeoDataFrame.
+
+        Parameters
+        ----------
+        bc_type: str
+            The type of boundary condition ('flow' or 'wave').
+        """
+        if bc_type == 'flow':
+            file_type = 'bndfile'
+        elif bc_type == 'wave':
+            file_type = 'bwvfile'
+        gdf_name = 'gdf_' + bc_type
+
         file_name = getattr(self.model.input.variables, file_type)
         if not file_name:
             return
 
-        file_name = os.path.join(self.model.path, file_name)
+        file_name = self.model.path / file_name
 
-        if not os.path.exists(file_name):
-            print(f"Warning! File {file_name} does not exist!")
-            return
+        if not file_name.exists():
+            raise FileNotFoundError(f"File {file_name} does not exist!")
 
         # Read the bnd file
         df = pd.read_csv(file_name, index_col=False, header=None,
-                         names=['x', 'y', 'name'], sep=r"\s+")
+                         names=['x', 'y', 'name'], sep=r"\s+", encoding='latin1')
 
         gdf_list = []
         # Loop through points
@@ -61,10 +82,19 @@ class BewareBoundaryConditions:
             gdf_list.append(d)
         setattr(self, gdf_name, gpd.GeoDataFrame(gdf_list, crs=self.model.crs))
 
-    def write_boundary_points(self, file_type='bndfile', gdf_name='gdf_flow'):
+    def write_boundary_points(self, bc_type:str = 'flow'):
         """
         Writes boundary point coordinates to the  (.bnd) or (.bwv) files.
+        Parameters
+        ----------
+        bc_type: str
+            The type of boundary condition ('flow' or 'wave').
         """
+        if bc_type == 'flow':
+            file_type = 'bndfile'
+        elif bc_type == 'wave':
+            file_type = 'bwvfile'
+        gdf_name = 'gdf_' + bc_type
         gdf = getattr(self, gdf_name)
         if len(gdf.index) == 0:
             return
@@ -74,7 +104,7 @@ class BewareBoundaryConditions:
             file_name = "beware.bnd" if gdf_name == 'gdf_flow' else "beware.bwv"
             setattr(self.model.input.variables, file_type, file_name)
 
-        file_name = os.path.join(self.model.path, file_name)
+        file_name = self.model.path / file_name
 
         with open(file_name, "w") as fid:
             for _, row in gdf.iterrows():
@@ -86,22 +116,24 @@ class BewareBoundaryConditions:
                     fid.write(f'{x:12.1f}{y:12.1f} {name}\n')
 
 
-    def read_boundary_conditions_timeseries(self, bc_type = 'flow'):
+    def read_boundary_conditions_timeseries(self, bc_type:str = 'flow'):
         """
         Reads boundary time series for water level (zs) or waves (hs, tp) into the GeoDataFrame.
-        
-        Parameters:
-        - bc_type: str, either 'flow' or 'wave'
+
+        Parameters
+        ----------
+        bc_type: str
+            The type of boundary condition ('flow' or 'wave').
         """
+        start_time = time.time()
+
         if bc_type == 'flow':
             file_types = ['bzsfile',]
             variables = ['wl']
-            gdf_name = 'gdf_flow'
         elif bc_type == 'wave':
             file_types = ['bhsfile', 'btpfile']
             variables = ['hs', 'tp']
-            gdf_name = 'gdf_wave'
-   
+        gdf_name = 'gdf_' + bc_type
         gdf = getattr(self, gdf_name, None)
         if len(gdf) == 0:
             return
@@ -114,8 +146,8 @@ class BewareBoundaryConditions:
             if not file_name:
                 continue
 
-            file_name = os.path.join(self.model.path, file_name)
-            if not os.path.exists(file_name):
+            file_name = self.model.path / file_name
+            if not file_name.exists():
                 print(f"Warning! File {file_name} does not exist!")
                 continue
 
@@ -128,11 +160,18 @@ class BewareBoundaryConditions:
                     point["timeseries"].set_index("time", inplace=True)
                 point["timeseries"][var] = df_ts.iloc[:, ip].values
 
-    def write_boundary_conditions_timeseries(self, bc_type = 'flow', gdf_name='gdf_flow'):
+        self.model.logger.info(f"Read boundary conditions timeseries for {bc_type} in {time.time() - start_time:.2f} seconds")
+
+    def write_boundary_conditions_timeseries(self, bc_type:str = 'flow'):
         """
         Writes boundary time series for water level (zs) or waves (hs, tp) from the GeoDataFrame.
-        """
 
+        Parameters
+        ----------
+        bc_type: str
+            The type of boundary condition ('flow' or 'wave').
+        """
+        gdf_name = 'gdf_' + bc_type
         gdf = getattr(self, gdf_name, None)
         if len(gdf.index) == 0:
             return
@@ -144,7 +183,7 @@ class BewareBoundaryConditions:
         def write_timeseries(file_type, var, gdf):
             if not getattr(self.model.input.variables, file_type):
                 setattr(self.model.input.variables, file_type, f"beware.b{var}")
-            file_name = os.path.join(self.model.path, getattr(self.model.input.variables, file_type))
+            file_name = self.model.path / getattr(self.model.input.variables, file_type)
             df = pd.DataFrame({ip: point["timeseries"][var] for ip, point in gdf.iterrows()})
             df.index = dt
             to_fwf(df, file_name)
