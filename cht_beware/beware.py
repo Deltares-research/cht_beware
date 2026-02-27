@@ -717,7 +717,7 @@ class BewareProfiles():
             return
 
         df = pd.read_csv(file_name, index_col=False,
-                         sep="\s+")
+                         sep=r"\s+")
 
         self.betab= df.beachslope.values
         self.xc= df.x_coast.values
