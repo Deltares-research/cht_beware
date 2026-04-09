@@ -24,7 +24,7 @@ import time
 import sys
 import datetime
 
-import cht_utils.misc_tools
+from cht_utils.fileio.json_js import write_json_js, write_csv_js
 
 class Point():        
     def __init__(self, x, y, name = None, crs=None):        
@@ -591,7 +591,7 @@ class BEWARE:
 #             os.mkdir(output_path_runup)
 #             file_name = os.path.join(output_path_runup,
 #                                     "extreme_runup_height.geojson.js")
-#             cht_utils.misc_tools.write_json_js(file_name, feature_collection, "var runup =")
+#             write_json_js(file_name, feature_collection, "var runup =")
             
 #         features = []
             
@@ -618,7 +618,7 @@ class BEWARE:
 #             os.mkdir(output_path_waves)
 #             file_name = os.path.join(output_path_waves,     
 #                                     "extreme_sea_level_and_wave_height.geojson.js")
-#             cht_utils.misc_tools.write_json_js(file_name, feature_collection, "var swl =")
+#             write_json_js(file_name, feature_collection, "var swl =")
 #         # with open(output_path + r"\\" + scenario + '.TWL.geojson.js', 'w') as fl:
 #         #     fl.write('const point_' + scenario + '_TWL = ')
 #         #     dump(feature_collection, fl)
@@ -664,13 +664,13 @@ class BEWARE:
 #                          float_format='%.3f',
 #                          header= False, index_label= 'datetime')        
             
-#             cht_utils.misc_tools.write_csv_js(local_file_path, s, "var csv = `date_time,wl,setup,swash,runup")
+#             write_csv_js(local_file_path, s, "var csv = `date_time,wl,setup,swash,runup")
                              
 #         if features:
 #             feature_collection = FeatureCollection(features)
 #             runup_file = os.path.join(output_path,
 #                                     "twls.geojson.js")
-#             cht_utils.misc_tools.write_json_js(runup_file, feature_collection, "var TWL =")
+#             write_json_js(runup_file, feature_collection, "var TWL =")
             
 
 class BewareInput():
