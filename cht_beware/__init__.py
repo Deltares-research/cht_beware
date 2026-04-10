@@ -1,7 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Sun Apr 25 10:58:08 2021
+"""cht_beware: Python interface for the BEWARE beach runup and flooding model."""
 
-@author: ormondt
-"""
-from .beware import BEWARE
+from .beware import BEWARE  # noqa: F401
