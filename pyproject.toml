@@ -17,6 +17,6 @@ dependencies = [
     "xarray",
     "netCDF4",
     "mat73",
-    "cht-utils",
+    "cht_utils@ git+https://github.com/deltares-research/cht_utils.git",
 ]
 
